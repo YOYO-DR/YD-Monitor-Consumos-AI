@@ -1,0 +1,7 @@
+.venv/
+env/
+.playwright-mcp/
+__pycache__/
+*.pyc
+.install.version
+src/*.egg-info/

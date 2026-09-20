@@ -1,0 +1,20 @@
+[project]
+name = "monitor-consumos"
+version = "0.1.2"
+description = "Widget de bandeja para vigilar el consumo de cuentas de IA"
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.6",
+    "httpx>=0.27",
+    "playwright>=1.40",
+]
+
+[project.scripts]
+monitor-consumos = "monitor_consumos.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
