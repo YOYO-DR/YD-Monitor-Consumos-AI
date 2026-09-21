@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import autostart, config, settings as settings_module
+from .. import __version__, autostart, config, settings as settings_module
 from ..auth import accounts as accounts_registry
 from ..auth import store
 from ..core.account import Account
@@ -121,7 +121,7 @@ class ManagerWindow(QWidget):
         super().__init__(parent)
         self._settings = current
 
-        self.setWindowTitle("Monitor de consumos · Cuentas")
+        self.setWindowTitle(f"Monitor de consumos · Cuentas · v{__version__}")
         self.setMinimumWidth(560)
         self.setStyleSheet(theme.PANEL_STYLESHEET + f"QWidget {{ background: {theme.SURFACE.name()}; }}")
 
