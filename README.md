@@ -9,7 +9,19 @@ El icono de la bandeja es un anillo que refleja la ventana más cargada de todas
 tus cuentas y cambia de color: verde por debajo del 70 %, ámbar a partir del
 70 %, rojo a partir del 90 %. Al pulsarlo se despliega el panel con el detalle.
 
-## Instalación
+## Instalación rápida (sin clonar a mano)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/YOYO-DR/YD-Monitor-Consumos-AI/main/install.sh | bash
+```
+
+Instala o actualiza la última versión en `~/.local/share/monitor-consumos`,
+crea el entorno virtual, registra el icono en el menú de aplicaciones y deja
+un lanzador en tu escritorio. Antes valida que el sistema tenga `bash`, `git`,
+`python3 ≥ 3.11`, `pip` y `venv` — si falta algo, aborta con un mensaje claro
+diciendo qué instalar.
+
+## Instalación local
 
 ```bash
 ./install.sh
@@ -19,7 +31,9 @@ Crea el entorno virtual, instala las dependencias y Chromium, y deja un
 icono de "Monitor de consumos" tanto en el menú de aplicaciones como en tu
 escritorio (la primera vez que lo abras desde ahí, tu gestor de archivos
 puede pedirte "Permitir ejecución" o "Confiar"). Se puede volver a ejecutar
-sin miedo: todo lo que crea, lo sobrescribe.
+sin miedo: detecta la versión instalada y solo reinstala si cambió.
+
+`./install.sh --force` reinstala aunque la versión no haya cambiado.
 
 Instalación manual, sin icono ni menú:
 
