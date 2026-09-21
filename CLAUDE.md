@@ -9,9 +9,28 @@ El código, los comentarios y la interfaz están en español. Escribe igual.
 ```bash
 ./install.sh                      # venv + deps + playwright + lanzadores .desktop (idempotente)
 ./install.sh --force              # reinstalar aunque la versión no haya cambiado
+
+# Desde otra máquina, sin clonar a mano:
+curl -fsSL https://raw.githubusercontent.com/YOYO-DR/YD-Monitor-Consumos-AI/main/install.sh | bash
+
 ./run.py                          # arrancar (mete src/ en sys.path, no hace falta instalar)
 .venv/bin/python test_monitor.py  # toda la batería
 ```
+
+### Preflight de `install.sh`
+
+Antes de hacer nada, `install.sh` valida que el sistema tenga lo mínimo para
+funcionar. Aborta con un mensaje claro si falta algo:
+
+- **Estrictas (aborta):** `bash`, `git`, `python3`, `sed`, `tr`, `head`, `pip`, `venv`,
+  Python ≥ 3.11.
+- **Opcionales (avisa y sigue):** `xdg-user-dir` (Desktop cae a `$HOME/Desktop`),
+  `curl`.
+
+Si el script lo ejecutas por `curl | bash` y aún no hay clon local, lo clona
+en `~/.local/share/monitor-consumos` vía HTTPS y se relanza a sí mismo desde
+ahí, así que cualquier ejecución posterior desde esa misma URL hace `git pull`
++ `pip install -e .` sin duplicar código.
 
 ### Versionado
 

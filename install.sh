@@ -1,18 +1,76 @@
 #!/usr/bin/env bash
-# Instala o actualiza monitor-consumos en el sistema:
-#   - Lee la versión del proyecto desde pyproject.toml.
-#   - Compara con la versión instalada (marcada en .install.version) y decide
-#     si reinstalar o solo recrear los lanzadores de escritorio.
-#   - Reinstala siempre que falte el venv, falte la marca o pidamos --force.
+# Instala o actualiza monitor-consumos en el sistema.
+#
+# Se puede usar de dos formas:
+#   1. Local: desde un clon ya descargado
+#        ./install.sh [--force]
+#   2. Remoto: descarga/actualiza el repo y lo instala en un paso
+#        curl -fsSL https://raw.githubusercontent.com/YOYO-DR/YD-Monitor-Consumos-AI/main/install.sh | bash
+#
 # Idempotente: se puede relanzar sin miedo.
 set -euo pipefail
 
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_DIR="$PROJECT_DIR/.venv"
-VERSION_FILE="$PROJECT_DIR/.install.version"
-PYPROJECT="$PROJECT_DIR/pyproject.toml"
+REPO_HTTPS="https://github.com/YOYO-DR/YD-Monitor-Consumos-AI.git"
+DEFAULT_INSTALL_DIR="$HOME/.local/share/monitor-consumos"
 DESKTOP_FILE_NAME="monitor-consumos.desktop"
 APPLICATIONS_DIR="$HOME/.local/share/applications"
+MIN_PYTHON_MAJOR=3
+MIN_PYTHON_MINOR=11
+
+# -----------------------------------------------------------------------------
+# Preflight: comprobar que el sistema tiene lo mínimo para que esto funcione.
+# Las estrictas abortan; las opcionales solo avisan y siguen.
+# -----------------------------------------------------------------------------
+missing=()
+warn_missing=()
+
+need_cmd() { command -v "$1" >/dev/null 2>&1 || missing+=("$1"); }
+soft_cmd() { command -v "$1" >/dev/null 2>&1 || warn_missing+=("$1"); }
+
+need_cmd bash
+need_cmd git
+need_cmd python3
+need_cmd sed
+need_cmd tr
+need_cmd head
+
+soft_cmd xdg-user-dir    # sin él, Desktop cae a $HOME/Desktop
+soft_cmd curl            # útil si en el futuro hay descarga directa
+
+if [ ${#missing[@]} -gt 0 ]; then
+    echo "Faltan programas requeridos para instalar monitor-consumos:" >&2
+    for cmd in "${missing[@]}"; do
+        echo "  - $cmd" >&2
+    done
+    echo "" >&2
+    echo "Instálalos con el gestor de paquetes de tu distro (apt, dnf, pacman...) y vuelve a ejecutar." >&2
+    exit 1
+fi
+
+# Versión de Python: pyproject exige >=3.11. sys.exit(0)=OK, exit !=0=error,
+# así que negamos el resultado de la comparación para que solo falle cuando
+# python es demasiado viejo.
+if ! python3 -c "import sys; sys.exit(not (sys.version_info >= ($MIN_PYTHON_MAJOR, $MIN_PYTHON_MINOR)))"; then
+    echo "Se necesita Python >= ${MIN_PYTHON_MAJOR}.${MIN_PYTHON_MINOR}, pero python3 es:" >&2
+    python3 --version >&2
+    echo "Instala una versión reciente de Python o ajusta pyproject.toml." >&2
+    exit 1
+fi
+
+# pip y venv se comprueban aquí (no antes) porque la lógica de instalación los
+# usa por comandos y, si faltan, fallaremos con un mensaje claro más abajo.
+if ! python3 -m pip --version >/dev/null 2>&1; then
+    echo "Falta el módulo 'pip' en python3. Instálalo (p. ej. 'apt install python3-pip') y vuelve a ejecutar." >&2
+    exit 1
+fi
+if ! python3 -m venv --help >/dev/null 2>&1; then
+    echo "Falta el módulo 'venv' en python3. Instálalo (p. ej. 'apt install python3-venv') y vuelve a ejecutar." >&2
+    exit 1
+fi
+
+if [ ${#warn_missing[@]} -gt 0 ]; then
+    echo "Aviso: faltan algunas utilidades opcionales (${warn_missing[*]}). El instalador seguirá, pero puede que pierdas algún detalle de integración con el escritorio." >&2
+fi
 
 if command -v xdg-user-dir >/dev/null 2>&1; then
     DESKTOP_DIR="$(xdg-user-dir DESKTOP)"
@@ -27,8 +85,42 @@ case "${1:-}" in
     *) echo "uso: $0 [--force]" >&2; exit 2 ;;
 esac
 
-# Lee la versión declarada en pyproject.toml. Solo el primer match de
-# '^version = ' bajo [project], que es lo que pip usa.
+# -----------------------------------------------------------------------------
+# Detección: ¿estamos corriendo desde un clon local o desde un pipe (curl|bash)?
+# -----------------------------------------------------------------------------
+# Si el script se ejecuta por pipe (`curl ... | bash`), BASH_SOURCE[0] no es un
+# archivo real existente en disco. En ese caso nos aseguramos de que el repo
+# esté clonado en DEFAULT_INSTALL_DIR y relanzamos el script desde ahí.
+_script_path="${BASH_SOURCE[0]:-}"
+if [ -n "$_script_path" ] && [ -f "$_script_path" ]; then
+    PROJECT_DIR="$(cd "$(dirname "$_script_path")" && pwd)"
+else
+    PROJECT_DIR="$DEFAULT_INSTALL_DIR"
+    echo "==> Instalando desde origen remoto vía one-liner"
+
+    if [ -d "$PROJECT_DIR/.git" ]; then
+        echo "    Repo ya presente en $PROJECT_DIR: actualizando con git pull..."
+        git -C "$PROJECT_DIR" pull --ff-only origin main || {
+            echo "    Aviso: git pull falló (cambios locales o red). Continuando con lo que hay..."
+        }
+    else
+        echo "    Clonando en $PROJECT_DIR..."
+        mkdir -p "$(dirname "$PROJECT_DIR")"
+        git clone "$REPO_HTTPS" "$PROJECT_DIR"
+    fi
+
+    # Cede el control al script dentro del repo clonado, pasándole los argumentos
+    exec bash "$PROJECT_DIR/install.sh" "$@"
+fi
+
+# -----------------------------------------------------------------------------
+# Lógica de instalación (ya dentro de un clon local garantizado)
+# -----------------------------------------------------------------------------
+VENV_DIR="$PROJECT_DIR/.venv"
+VERSION_FILE="$PROJECT_DIR/.install.version"
+PYPROJECT="$PROJECT_DIR/pyproject.toml"
+
+# Lee la versión declarada en pyproject.toml bajo [project].
 project_version() {
     sed -n '/^\[project\]/,/^\[/p' "$PYPROJECT" \
         | sed -n 's/^version[ ]*=[ ]*"\([^"]*\)".*/\1/p' | head -n1
@@ -42,7 +134,8 @@ installed_version() {
 PROJECT_VERSION="$(project_version)"
 INSTALLED_VERSION="$(installed_version)"
 
-echo "==> Versión declarada:  $PROJECT_VERSION"
+echo "==> Directorio:        $PROJECT_DIR"
+echo "==> Versión declarada: $PROJECT_VERSION"
 echo "==> Versión instalada: ${INSTALLED_VERSION:-ninguna}"
 
 needs_install=0
@@ -74,8 +167,7 @@ if [ "$needs_install" -eq 1 ]; then
     printf '%s' "$PROJECT_VERSION" > "$VERSION_FILE"
     echo "    marca de versión actualizada en $VERSION_FILE"
 else
-    # Aun sin reinstalar, nos aseguramos de que el navegador de pruebas esté
-    # listo: es barato y evita un fallo la primera vez que se use.
+    # Asegura que el chromium de pruebas esté listo sin reinstalar el venv.
     "$VENV_DIR/bin/playwright" install chromium >/dev/null 2>&1 || true
 fi
 
